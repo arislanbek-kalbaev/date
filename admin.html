@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Ответы</title>
+  <title>Админ-панель</title>
   <style>
     :root {
       color-scheme: light;
@@ -26,7 +26,7 @@
     }
 
     .shell {
-      max-width: 760px;
+      max-width: 920px;
       margin: 0 auto;
       padding: 48px 20px 64px;
     }
@@ -37,13 +37,18 @@
       letter-spacing: -0.02em;
     }
 
+    h2 {
+      font-size: 1.4rem;
+      margin: 48px 0 8px;
+    }
+
     .subtitle {
-      margin: 0 0 32px;
+      margin: 0 0 8px;
       color: var(--muted);
       font-size: 1rem;
     }
 
-    .response-card {
+    .response-card, .activity-row, .add-activity-card {
       border: 1px solid var(--border);
       background: var(--panel);
       box-shadow: var(--shadow);
@@ -58,11 +63,12 @@
       margin: 0 0 4px;
     }
 
-    .response-time {
+    .response-time, .response-meta {
       color: var(--muted);
       font-size: 0.85rem;
-      margin-bottom: 16px;
     }
+
+    .response-meta { margin-bottom: 16px; }
 
     .response-message {
       font-size: 1.05rem;
@@ -101,6 +107,7 @@
     .toolbar {
       display: flex;
       justify-content: flex-end;
+      gap: 10px;
       margin-bottom: 20px;
     }
 
@@ -115,21 +122,96 @@
       font-size: 0.9rem;
       cursor: pointer;
     }
+
+    .button.danger {
+      color: #9c2f2f;
+      border-color: rgba(156, 47, 47, 0.3);
+    }
+
+    .activity-row {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 14px 18px;
+    }
+
+    .activity-thumb {
+      width: 64px;
+      height: 64px;
+      border-radius: 14px;
+      object-fit: cover;
+      flex-shrink: 0;
+      background: #fff;
+    }
+
+    .activity-name {
+      flex: 1;
+      font-size: 1.1rem;
+    }
+
+    .add-activity-card form {
+      display: grid;
+      gap: 14px;
+    }
+
+    label.field {
+      display: block;
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+
+    input[type="text"], input[type="file"] {
+      margin-top: 4px;
+      width: 100%;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: #fff;
+      padding: 10px 12px;
+      font: inherit;
+    }
+
+    .form-error {
+      color: #9c2f2f;
+      font-size: 0.85rem;
+      display: none;
+    }
   </style>
 </head>
 <body>
   <div class="shell">
-    <h1>Её ответ</h1>
-    <p class="subtitle">Здесь появится то, что она выбрала и написала.</p>
+    <h1>Админ-панель</h1>
+    <p class="subtitle">Ответы и варианты для свидания.</p>
+
+    <h2>Её ответы</h2>
     <div class="toolbar">
-      <button class="button" id="refresh">Обновить</button>
+      <button class="button" id="refresh-responses">Обновить</button>
     </div>
     <div id="responses"></div>
+
+    <h2>Варианты для свидания</h2>
+    <div class="toolbar">
+      <button class="button" id="refresh-activities">Обновить</button>
+    </div>
+    <div id="activities"></div>
+
+    <div class="add-activity-card">
+      <div class="activities-label">Добавить вариант</div>
+      <form id="add-activity-form">
+        <label class="field">
+          Название
+          <input type="text" id="activity-name" maxlength="200" required />
+        </label>
+        <label class="field">
+          Фото
+          <input type="file" id="activity-image" accept="image/*" required />
+        </label>
+        <p class="form-error" id="add-activity-error"></p>
+        <button type="submit" class="button">Добавить</button>
+      </form>
+    </div>
   </div>
 
   <script>
-    const responsesEl = document.getElementById('responses');
-
     const escapeHtml = (value) => String(value ?? '')
       .replaceAll('&', '&amp;')
       .replaceAll('<', '&lt;')
@@ -144,6 +226,19 @@
       return date.toLocaleString();
     };
 
+    function getAdminToken() {
+      let token = localStorage.getItem('adminToken');
+      if (!token) {
+        token = prompt('Введите токен администратора (нужен для добавления/удаления вариантов):') || '';
+        if (token) localStorage.setItem('adminToken', token);
+      }
+      return token;
+    }
+
+    // --- Responses ---
+
+    const responsesEl = document.getElementById('responses');
+
     const renderResponses = (responses) => {
       if (!responses.length) {
         responsesEl.innerHTML = '<div class="empty">Пока нет ответов. Как только она отправит выбор, он появится здесь.</div>';
@@ -151,14 +246,11 @@
       }
 
       responsesEl.innerHTML = responses.map((response) => {
-        const details = Array.isArray(response.details) && response.details.length
-          ? response.details
-          : (Array.isArray(response.activities) ? response.activities : []);
-
-        const activitiesHtml = details.length
+        const activities = Array.isArray(response.activities) ? response.activities : [];
+        const activitiesHtml = activities.length
           ? `
             <div class="activities-label">Выбрала</div>
-            ${details.map((item) => `<div class="activity-item">${escapeHtml(item)}</div>`).join('')}
+            ${activities.map((item) => `<div class="activity-item">${escapeHtml(item)}</div>`).join('')}
           `
           : '<div class="activities-label">Ничего не выбрала</div>';
 
@@ -166,10 +258,15 @@
           ? `<p class="response-message">${escapeHtml(response.message)}</p>`
           : '';
 
+        const meetingHtml = (response.date || response.time)
+          ? `<div class="response-meta">Дата и время: ${escapeHtml(response.date || '—')} ${escapeHtml(response.time || '')}</div>`
+          : '';
+
         return `
           <div class="response-card">
             <div class="response-name">${escapeHtml(response.name || 'Без имени')}</div>
-            <div class="response-time">${escapeHtml(formatTime(response.received_at))}</div>
+            <div class="response-time">${escapeHtml(formatTime(response.submitted_at))}</div>
+            ${meetingHtml}
             ${messageHtml}
             ${activitiesHtml}
           </div>
@@ -183,10 +280,99 @@
       renderResponses(data.responses || []);
     }
 
-    document.getElementById('refresh').addEventListener('click', loadResponses);
+    document.getElementById('refresh-responses').addEventListener('click', loadResponses);
 
     loadResponses().catch((error) => {
       responsesEl.innerHTML = `<div class="empty">Не удалось загрузить ответы: ${escapeHtml(error.message || String(error))}</div>`;
+    });
+
+    // --- Activities ---
+
+    const activitiesEl = document.getElementById('activities');
+
+    const renderActivities = (activities) => {
+      if (!activities.length) {
+        activitiesEl.innerHTML = '<div class="empty">Пока нет вариантов. Добавь первый ниже.</div>';
+        return;
+      }
+
+      activitiesEl.innerHTML = activities.map((activity) => `
+        <div class="activity-row">
+          <img class="activity-thumb" src="${escapeHtml(activity.image_url)}" alt="" />
+          <div class="activity-name">${escapeHtml(activity.name)}</div>
+          <button class="button danger" data-delete-id="${escapeHtml(activity.id)}">Удалить</button>
+        </div>
+      `).join('');
+
+      activitiesEl.querySelectorAll('[data-delete-id]').forEach((button) => {
+        button.addEventListener('click', () => deleteActivity(button.dataset.deleteId));
+      });
+    };
+
+    async function loadActivities() {
+      const res = await fetch('/api/activities', { headers: { accept: 'application/json' } });
+      const data = await res.json();
+      renderActivities(data.activities || []);
+    }
+
+    async function deleteActivity(id) {
+      if (!confirm('Удалить этот вариант?')) return;
+      const token = getAdminToken();
+      const res = await fetch(`/api/activities/${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+        headers: { 'x-admin-token': token },
+      });
+      if (res.status === 401) {
+        localStorage.removeItem('adminToken');
+        alert('Неверный токен администратора.');
+        return;
+      }
+      await loadActivities();
+    }
+
+    document.getElementById('refresh-activities').addEventListener('click', loadActivities);
+
+    loadActivities().catch((error) => {
+      activitiesEl.innerHTML = `<div class="empty">Не удалось загрузить варианты: ${escapeHtml(error.message || String(error))}</div>`;
+    });
+
+    const addForm = document.getElementById('add-activity-form');
+    const addError = document.getElementById('add-activity-error');
+
+    addForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      addError.style.display = 'none';
+
+      const name = document.getElementById('activity-name').value.trim();
+      const fileInput = document.getElementById('activity-image');
+      const file = fileInput.files[0];
+      if (!name || !file) return;
+
+      const token = getAdminToken();
+      const formData = new FormData();
+      formData.append('name', name);
+      formData.append('image', file);
+
+      const res = await fetch('/api/activities', {
+        method: 'POST',
+        headers: { 'x-admin-token': token },
+        body: formData,
+      });
+
+      if (res.status === 401) {
+        localStorage.removeItem('adminToken');
+        addError.textContent = 'Неверный токен администратора. Попробуй ещё раз.';
+        addError.style.display = 'block';
+        return;
+      }
+      if (!res.ok) {
+        addError.textContent = 'Не получилось добавить вариант.';
+        addError.style.display = 'block';
+        return;
+      }
+
+      addForm.reset();
+      await loadActivities();
     });
   </script>
 </body>

@@ -4,28 +4,50 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Гульхаё, пойдём на свидание?</title>
-  <meta name="description" content="Особое приглашение для Гульхаё — выбери активность, место и время нашей встречи." />
+  <meta name="description" content="Особое приглашение для Гульхаё — выбери, куда сходим, и когда." />
   <link rel="stylesheet" href="css2" />
   <link rel="stylesheet" href="styles-BQKTOYHW.css" />
   <style>
     html, body { margin: 0; }
-    button[data-activity] { appearance: none; font: inherit; cursor: pointer; }
-    button[data-activity][aria-pressed="true"] {
+    button[data-activity-card] { appearance: none; font: inherit; cursor: pointer; }
+    button[data-activity-card][aria-pressed="true"] {
       border-color: var(--coral) !important;
       box-shadow: var(--shadow-soft);
       background: color-mix(in oklab, var(--coral) 6%, var(--card));
     }
-    button[data-activity][aria-pressed="true"] .check-dot {
+    button[data-activity-card][aria-pressed="true"] .check-dot {
       background: var(--coral);
       border-color: var(--coral);
       color: #fff;
     }
-    #submit-btn:disabled, button[data-activity]:disabled, #name-input:disabled, #message-input:disabled {
+    .activity-image {
+      width: 100%;
+      aspect-ratio: 4 / 3;
+      object-fit: cover;
+      border-radius: 1.25rem;
+      display: block;
+    }
+    #submit-btn:disabled, button[data-activity-card]:disabled, #name-input:disabled,
+    #message-input:disabled, #date-input:disabled, #time-input:disabled {
       opacity: .6;
       cursor: not-allowed;
     }
-    .response { display: none; margin-top: 18px; padding: 16px; border-radius: 14px; background: color-mix(in oklab, var(--coral) 10%, transparent); text-align: center; }
-    .response.show { display: block; }
+    .field-input {
+      margin-top: .25rem;
+      width: 100%;
+      border-radius: .75rem;
+      border: 1px solid var(--input);
+      background: var(--background);
+      padding: .75rem 1rem;
+      outline: none;
+      transition: border-color .15s ease, box-shadow .15s ease;
+      font: inherit;
+    }
+    .field-input:focus {
+      border-color: var(--coral);
+      box-shadow: 0 0 0 3px color-mix(in oklab, var(--coral) 30%, transparent);
+    }
+    .state-message { padding: 1rem; border-radius: 1rem; text-align: center; color: var(--muted-foreground); }
   </style>
 </head>
 <body>
@@ -39,7 +61,7 @@
           Личное приглашение
         </span>
         <h1 class="mt-6 text-5xl leading-[1.05] sm:text-7xl" style="font-family:var(--font-display)">Гульхаё,<br>пойдём на свидание?</h1>
-        <p class="mx-auto mt-6 max-w-xl text-base text-muted-foreground sm:text-lg">Я собрал несколько идей, как мы могли бы провести время вместе. Выбери всё, что тебе по душе — место и время уже подобраны для тебя.</p>
+        <p class="mx-auto mt-6 max-w-xl text-base text-muted-foreground sm:text-lg">Я собрал несколько идей, как мы могли бы провести время вместе. Выбери, что тебе по душе, а потом — удобную дату и время.</p>
         <div class="mt-8 inline-flex items-center gap-2 text-sm text-muted-foreground">
           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-heart h-4 w-4 fill-[color:var(--coral)] text-[color:var(--coral)]" aria-hidden="true"><path d="M2 9.5a5.5 5.5 0 0 1 9.591-3.676.56.56 0 0 0 .818 0A5.49 5.49 0 0 1 22 9.5c0 2.29-1.5 4-3 5.5l-5.492 5.313a2 2 0 0 1-3 .019L5 15c-1.5-1.5-3-3.2-3-5.5"></path></svg>
           С любовью
@@ -49,119 +71,42 @@
 
     <section class="mx-auto max-w-6xl px-6 py-16">
       <div class="mb-10 text-center">
-        <h2 class="text-3xl sm:text-4xl" style="font-family:var(--font-display)">Что выберешь?</h2>
-        <p class="mt-2 text-sm text-muted-foreground">Нажми на карточку, чтобы выбрать. Можно несколько.</p>
+        <h2 class="text-3xl sm:text-4xl" style="font-family:var(--font-display)">Куда сходим?</h2>
+        <p class="mt-2 text-sm text-muted-foreground">Нажми на карточку, чтобы выбрать вариант.</p>
       </div>
       <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3" id="cards">
-        <button type="button" aria-pressed="false" data-activity="Караоке вдвоём" data-where="Караоке «Розовый микрофон», ул. Навои 12" data-when="Суббота, 20:00" class="group relative overflow-hidden rounded-3xl border bg-card p-6 text-left transition-all duration-300 hover:-translate-y-1 border-border hover:shadow-[var(--shadow-soft)]">
-          <div aria-hidden="true" class="absolute -right-10 -top-10 h-32 w-32 rounded-full opacity-30 blur-2xl transition-opacity group-hover:opacity-60" style="background:var(--rose)"></div>
-          <div class="flex items-start justify-between">
-            <div class="flex h-12 w-12 items-center justify-center rounded-2xl text-white shadow-md" style="background:var(--rose)"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-music2 h-6 w-6" aria-hidden="true"><circle cx="8" cy="18" r="4"></circle><path d="M12 18V2l7 4"></path></svg></div>
-            <div class="check-dot flex h-7 w-7 items-center justify-center rounded-full border transition-all border-border bg-background"></div>
-          </div>
-          <h3 class="mt-5 text-2xl" style="font-family:var(--font-display)">Караоке вдвоём</h3>
-          <p class="mt-2 text-sm text-muted-foreground">Споём наши любимые песни в уютной комнате только для нас двоих.</p>
-          <div class="mt-5 space-y-1.5 border-t border-dashed border-border pt-4 text-sm">
-            <div class="flex gap-2"><span class="text-muted-foreground">Где:</span><span class="font-medium">Караоке «Розовый микрофон», ул. Навои 12</span></div>
-            <div class="flex gap-2"><span class="text-muted-foreground">Когда:</span><span class="font-medium">Суббота, 20:00</span></div>
-          </div>
-        </button>
-
-        <button type="button" aria-pressed="false" data-activity="Романтика в кино" data-where="Кинотеатр «Cinema Park», зал VIP" data-when="Пятница, 19:30" class="group relative overflow-hidden rounded-3xl border bg-card p-6 text-left transition-all duration-300 hover:-translate-y-1 border-border hover:shadow-[var(--shadow-soft)]">
-          <div aria-hidden="true" class="absolute -right-10 -top-10 h-32 w-32 rounded-full opacity-30 blur-2xl transition-opacity group-hover:opacity-60" style="background:var(--violet-soft)"></div>
-          <div class="flex items-start justify-between">
-            <div class="flex h-12 w-12 items-center justify-center rounded-2xl text-white shadow-md" style="background:var(--violet-soft)"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-film h-6 w-6" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"></rect><path d="M7 3v18"></path><path d="M3 7.5h4"></path><path d="M3 12h18"></path><path d="M3 16.5h4"></path><path d="M17 3v18"></path><path d="M17 7.5h4"></path><path d="M17 16.5h4"></path></svg></div>
-            <div class="check-dot flex h-7 w-7 items-center justify-center rounded-full border transition-all border-border bg-background"></div>
-          </div>
-          <h3 class="mt-5 text-2xl" style="font-family:var(--font-display)">Романтика в кино</h3>
-          <p class="mt-2 text-sm text-muted-foreground">Мягкие кресла, плед, попкорн и фильм, который ты выберешь.</p>
-          <div class="mt-5 space-y-1.5 border-t border-dashed border-border pt-4 text-sm">
-            <div class="flex gap-2"><span class="text-muted-foreground">Где:</span><span class="font-medium">Кинотеатр «Cinema Park», зал VIP</span></div>
-            <div class="flex gap-2"><span class="text-muted-foreground">Когда:</span><span class="font-medium">Пятница, 19:30</span></div>
-          </div>
-        </button>
-
-        <button type="button" aria-pressed="false" data-activity="Прогулка в парке" data-where="Ботанический сад" data-when="Воскресенье, 17:00 — закат" class="group relative overflow-hidden rounded-3xl border bg-card p-6 text-left transition-all duration-300 hover:-translate-y-1 border-border hover:shadow-[var(--shadow-soft)]">
-          <div aria-hidden="true" class="absolute -right-10 -top-10 h-32 w-32 rounded-full opacity-30 blur-2xl transition-opacity group-hover:opacity-60" style="background:var(--coral)"></div>
-          <div class="flex items-start justify-between">
-            <div class="flex h-12 w-12 items-center justify-center rounded-2xl text-white shadow-md" style="background:var(--coral)"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-trees h-6 w-6" aria-hidden="true"><path d="M10 10v.2A3 3 0 0 1 8.9 16H5a3 3 0 0 1-1-5.8V10a3 3 0 0 1 6 0Z"></path><path d="M7 16v6"></path><path d="M13 19v3"></path><path d="M12 19h8.3a1 1 0 0 0 .7-1.7L18 14h.3a1 1 0 0 0 .7-1.7L16 9h.2a1 1 0 0 0 .8-1.7L13 3l-1.4 1.5"></path></svg></div>
-            <div class="check-dot flex h-7 w-7 items-center justify-center rounded-full border transition-all border-border bg-background"></div>
-          </div>
-          <h3 class="mt-5 text-2xl" style="font-family:var(--font-display)">Прогулка в парке</h3>
-          <p class="mt-2 text-sm text-muted-foreground">Долгая прогулка под цветущими деревьями и тёплыми разговорами.</p>
-          <div class="mt-5 space-y-1.5 border-t border-dashed border-border pt-4 text-sm">
-            <div class="flex gap-2"><span class="text-muted-foreground">Где:</span><span class="font-medium">Ботанический сад</span></div>
-            <div class="flex gap-2"><span class="text-muted-foreground">Когда:</span><span class="font-medium">Воскресенье, 17:00 — закат</span></div>
-          </div>
-        </button>
-
-        <button type="button" aria-pressed="false" data-activity="Утренний кофе" data-where="Кафе «La Vie», терраса у окна" data-when="Суббота, 10:30" class="group relative overflow-hidden rounded-3xl border bg-card p-6 text-left transition-all duration-300 hover:-translate-y-1 border-border hover:shadow-[var(--shadow-soft)]">
-          <div aria-hidden="true" class="absolute -right-10 -top-10 h-32 w-32 rounded-full opacity-30 blur-2xl transition-opacity group-hover:opacity-60" style="background:var(--rose)"></div>
-          <div class="flex items-start justify-between">
-            <div class="flex h-12 w-12 items-center justify-center rounded-2xl text-white shadow-md" style="background:var(--rose)"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-coffee h-6 w-6" aria-hidden="true"><path d="M10 2v2"></path><path d="M14 2v2"></path><path d="M16 8a1 1 0 0 1 1 1v8a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4V9a1 1 0 0 1 1-1h14a4 4 0 1 1 0 8h-1"></path><path d="M6 2v2"></path></svg></div>
-            <div class="check-dot flex h-7 w-7 items-center justify-center rounded-full border transition-all border-border bg-background"></div>
-          </div>
-          <h3 class="mt-5 text-2xl" style="font-family:var(--font-display)">Утренний кофе</h3>
-          <p class="mt-2 text-sm text-muted-foreground">Свежие круассаны, латте и неспешное начало дня вместе.</p>
-          <div class="mt-5 space-y-1.5 border-t border-dashed border-border pt-4 text-sm">
-            <div class="flex gap-2"><span class="text-muted-foreground">Где:</span><span class="font-medium">Кафе «La Vie», терраса у окна</span></div>
-            <div class="flex gap-2"><span class="text-muted-foreground">Когда:</span><span class="font-medium">Суббота, 10:30</span></div>
-          </div>
-        </button>
-
-        <button type="button" aria-pressed="false" data-activity="Ужин при свечах" data-where="Ресторан «Бельведер», столик у окна" data-when="Пятница, 20:00" class="group relative overflow-hidden rounded-3xl border bg-card p-6 text-left transition-all duration-300 hover:-translate-y-1 border-border hover:shadow-[var(--shadow-soft)]">
-          <div aria-hidden="true" class="absolute -right-10 -top-10 h-32 w-32 rounded-full opacity-30 blur-2xl transition-opacity group-hover:opacity-60" style="background:var(--coral)"></div>
-          <div class="flex items-start justify-between">
-            <div class="flex h-12 w-12 items-center justify-center rounded-2xl text-white shadow-md" style="background:var(--coral)"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-utensils-crossed h-6 w-6" aria-hidden="true"><path d="m16 2-2.3 2.3a3 3 0 0 0 0 4.2l1.8 1.8a3 3 0 0 0 4.2 0L22 8"></path><path d="M15 15 3.3 3.3a4.2 4.2 0 0 0 0 6l7.3 7.3c.7.7 2 .7 2.8 0L15 15Zm0 0 7 7"></path><path d="m2.1 21.8 6.4-6.3"></path><path d="m19 5-7 7"></path></svg></div>
-            <div class="check-dot flex h-7 w-7 items-center justify-center rounded-full border transition-all border-border bg-background"></div>
-          </div>
-          <h3 class="mt-5 text-2xl" style="font-family:var(--font-display)">Ужин при свечах</h3>
-          <p class="mt-2 text-sm text-muted-foreground">Изысканная кухня, бокал вина и только мы двое.</p>
-          <div class="mt-5 space-y-1.5 border-t border-dashed border-border pt-4 text-sm">
-            <div class="flex gap-2"><span class="text-muted-foreground">Где:</span><span class="font-medium">Ресторан «Бельведер», столик у окна</span></div>
-            <div class="flex gap-2"><span class="text-muted-foreground">Когда:</span><span class="font-medium">Пятница, 20:00</span></div>
-          </div>
-        </button>
-
-        <button type="button" aria-pressed="false" data-activity="Творческий вечер" data-where="Студия «Pink Canvas»" data-when="Суббота, 18:00" class="group relative overflow-hidden rounded-3xl border bg-card p-6 text-left transition-all duration-300 hover:-translate-y-1 border-border hover:shadow-[var(--shadow-soft)]">
-          <div aria-hidden="true" class="absolute -right-10 -top-10 h-32 w-32 rounded-full opacity-30 blur-2xl transition-opacity group-hover:opacity-60" style="background:var(--violet-soft)"></div>
-          <div class="flex items-start justify-between">
-            <div class="flex h-12 w-12 items-center justify-center rounded-2xl text-white shadow-md" style="background:var(--violet-soft)"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-palette h-6 w-6" aria-hidden="true"><path d="M12 22a1 1 0 0 1 0-20 10 9 0 0 1 10 9 5 5 0 0 1-5 5h-2.25a1.75 1.75 0 0 0-1.4 2.8l.3.4a1.75 1.75 0 0 1-1.4 2.8z"></path><circle cx="13.5" cy="6.5" r=".5" fill="currentColor"></circle><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"></circle><circle cx="6.5" cy="12.5" r=".5" fill="currentColor"></circle><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"></circle></svg></div>
-            <div class="check-dot flex h-7 w-7 items-center justify-center rounded-full border transition-all border-border bg-background"></div>
-          </div>
-          <h3 class="mt-5 text-2xl" style="font-family:var(--font-display)">Творческий вечер</h3>
-          <p class="mt-2 text-sm text-muted-foreground">Рисуем картины вдвоём — никакого опыта не нужно, только настроение.</p>
-          <div class="mt-5 space-y-1.5 border-t border-dashed border-border pt-4 text-sm">
-            <div class="flex gap-2"><span class="text-muted-foreground">Где:</span><span class="font-medium">Студия «Pink Canvas»</span></div>
-            <div class="flex gap-2"><span class="text-muted-foreground">Когда:</span><span class="font-medium">Суббота, 18:00</span></div>
-          </div>
-        </button>
+        <p class="state-message" id="cards-state">Загружаю варианты…</p>
       </div>
     </section>
 
     <section class="mx-auto max-w-2xl px-6 pb-24">
       <div class="rounded-3xl border border-border bg-card p-8 shadow-[var(--shadow-soft)]">
-        <h3 class="text-3xl" style="font-family:var(--font-display)">Сохрани и отправь свой выбор</h3>
-        <p class="mt-2 text-sm text-muted-foreground">Выбрано: <span class="font-semibold text-foreground" id="selected-count">0</span> из <span id="total-count">6</span></p>
+        <h3 class="text-3xl" style="font-family:var(--font-display)">Дата, время и твой ответ</h3>
+        <p class="mt-2 text-sm text-muted-foreground" id="selection-hint">Сначала выбери один вариант выше.</p>
         <div class="mt-6 space-y-4">
           <label class="block">
+            <span class="text-sm text-muted-foreground">Дата</span>
+            <input id="date-input" type="date" class="field-input" />
+          </label>
+          <label class="block">
+            <span class="text-sm text-muted-foreground">Время</span>
+            <input id="time-input" type="time" class="field-input" />
+          </label>
+          <label class="block">
             <span class="text-sm text-muted-foreground">Твоё имя</span>
-            <input id="name-input" maxlength="100" class="mt-1 w-full rounded-xl border border-input bg-background px-4 py-3 outline-none transition focus:border-[color:var(--coral)] focus:ring-2 focus:ring-[color:var(--coral)]/30" value="Гульхаё" />
+            <input id="name-input" maxlength="100" class="field-input" value="Гульхаё" />
           </label>
           <label class="block">
             <span class="text-sm text-muted-foreground">Сообщение для меня (по желанию)</span>
-            <textarea id="message-input" maxlength="1000" rows="3" placeholder="Напиши пару слов…" class="mt-1 w-full resize-none rounded-xl border border-input bg-background px-4 py-3 outline-none transition focus:border-[color:var(--coral)] focus:ring-2 focus:ring-[color:var(--coral)]/30"></textarea>
+            <textarea id="message-input" maxlength="1000" rows="3" placeholder="Напиши пару слов…" class="field-input" style="resize:none"></textarea>
           </label>
         </div>
-        <button type="button" id="submit-btn" class="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[color:var(--coral)] px-6 py-4 text-base font-semibold text-white shadow-[var(--shadow-soft)] transition hover:brightness-105 active:scale-[0.99] disabled:opacity-60">
+        <button type="button" id="submit-btn" disabled class="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[color:var(--coral)] px-6 py-4 text-base font-semibold text-white shadow-[var(--shadow-soft)] transition hover:brightness-105 active:scale-[0.99] disabled:opacity-60">
           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-send h-5 w-5" aria-hidden="true"><path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"></path><path d="m21.854 2.147-10.94 10.939"></path></svg>
           Отправить мой выбор
         </button>
         <p class="mt-3 text-center text-xs text-muted-foreground" id="submit-hint">Твой ответ придёт мне сразу 💌</p>
-        <div class="response" id="response">
-          <strong>Спасибо за твой ответ! 💝</strong><br>
-          Ты чудесна! Я уже всё получил.
-        </div>
+        <p class="mt-3 text-center text-xs" id="submit-error" style="display:none; color: var(--coral);"></p>
       </div>
     </section>
   </div>
@@ -174,62 +119,117 @@
       }
     };
 
-    const cards = Array.from(document.querySelectorAll('button[data-activity]'));
-    const selected = new Set();
-    const selectedCountEl = document.getElementById('selected-count');
-
-    cards.forEach((card) => {
-      card.addEventListener('click', () => {
-        const activity = card.dataset.activity;
-        const isNowSelected = !selected.has(activity);
-
-        if (isNowSelected) {
-          selected.add(activity);
-        } else {
-          selected.delete(activity);
-        }
-
-        card.setAttribute('aria-pressed', String(isNowSelected));
-        selectedCountEl.textContent = String(selected.size);
-
-        track('lovable.interaction', {
-          text: activity,
-          isChecked: isNowSelected,
-          userTriggered: true,
-          target_text: activity,
-          selector: '#cards > button',
-        });
-      });
-    });
-
+    const cardsEl = document.getElementById('cards');
+    const cardsStateEl = document.getElementById('cards-state');
+    const selectionHintEl = document.getElementById('selection-hint');
+    const dateInput = document.getElementById('date-input');
+    const timeInput = document.getElementById('time-input');
     const nameInput = document.getElementById('name-input');
     const messageInput = document.getElementById('message-input');
     const submitBtn = document.getElementById('submit-btn');
-    const responseEl = document.getElementById('response');
     const submitHint = document.getElementById('submit-hint');
+    const submitError = document.getElementById('submit-error');
 
-    submitBtn.addEventListener('click', () => {
-      const name = nameInput.value.trim();
-      const message = messageInput.value.trim();
-      const activities = cards.filter((c) => selected.has(c.dataset.activity));
+    let selectedActivity = null;
 
-      track('lovable.form_submitted', {
-        values: {
-          name: name || 'Гульхаё',
-          message: message,
-          activities: activities.map((c) => c.dataset.activity),
-          details: activities.map((c) => `${c.dataset.activity} — ${c.dataset.where} (${c.dataset.when})`),
-        },
+    const escapeHtml = (value) => String(value ?? '')
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#39;');
+
+    const updateSubmitState = () => {
+      const ready = Boolean(selectedActivity) && Boolean(dateInput.value) && Boolean(timeInput.value);
+      submitBtn.disabled = !ready;
+      selectionHintEl.textContent = selectedActivity
+        ? `Выбрано: ${selectedActivity.name}`
+        : 'Сначала выбери один вариант выше.';
+    };
+
+    const selectActivity = (activity, cardEl) => {
+      selectedActivity = activity;
+      cardsEl.querySelectorAll('[data-activity-card]').forEach((node) => {
+        node.setAttribute('aria-pressed', String(node === cardEl));
       });
+      track('lovable.interaction', {
+        text: activity.name,
+        isChecked: true,
+        userTriggered: true,
+        target_text: activity.name,
+        selector: '#cards > button',
+      });
+      updateSubmitState();
+    };
 
-      responseEl.classList.add('show');
-      submitHint.style.display = 'none';
+    async function loadActivities() {
+      try {
+        const res = await fetch('/api/activities', { headers: { accept: 'application/json' } });
+        const data = await res.json();
+        const activities = Array.isArray(data.activities) ? data.activities : [];
+        if (!activities.length) {
+          cardsStateEl.textContent = 'Пока нет вариантов. Зайди немного позже.';
+          return;
+        }
+        cardsEl.innerHTML = '';
+        activities.forEach((activity) => {
+          const card = document.createElement('button');
+          card.type = 'button';
+          card.setAttribute('aria-pressed', 'false');
+          card.setAttribute('data-activity-card', '');
+          card.className = 'group relative overflow-hidden rounded-3xl border bg-card p-4 text-left transition-all duration-300 hover:-translate-y-1 border-border hover:shadow-[var(--shadow-soft)]';
+          card.innerHTML = `
+            <img class="activity-image" src="${escapeHtml(activity.image_url)}" alt="" />
+            <div class="mt-4 flex items-center justify-between gap-2">
+              <h3 class="text-xl" style="font-family:var(--font-display)">${escapeHtml(activity.name)}</h3>
+              <div class="check-dot flex h-7 w-7 shrink-0 items-center justify-center rounded-full border transition-all border-border bg-background"></div>
+            </div>
+          `;
+          card.addEventListener('click', () => selectActivity(activity, card));
+          cardsEl.appendChild(card);
+        });
+      } catch (error) {
+        cardsStateEl.textContent = 'Не удалось загрузить варианты. Обнови страницу.';
+      }
+    }
 
-      cards.forEach((c) => { c.disabled = true; });
-      nameInput.disabled = true;
-      messageInput.disabled = true;
+    dateInput.addEventListener('change', updateSubmitState);
+    timeInput.addEventListener('change', updateSubmitState);
+
+    submitBtn.addEventListener('click', async () => {
+      if (!selectedActivity || !dateInput.value || !timeInput.value) return;
+
       submitBtn.disabled = true;
+      submitError.style.display = 'none';
+
+      const payload = {
+        name: nameInput.value.trim() || 'Гульхаё',
+        message: messageInput.value.trim(),
+        activities: [selectedActivity.name],
+        date: dateInput.value,
+        time: timeInput.value,
+      };
+
+      try {
+        const res = await fetch('/api/submit', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok) throw new Error('submit_failed');
+
+        track('lovable.form_submitted', { values: payload });
+
+        const params = new URLSearchParams({ name: payload.name });
+        window.location.href = `thanks.html?${params.toString()}`;
+      } catch (error) {
+        submitError.textContent = 'Не получилось отправить. Попробуй ещё раз.';
+        submitError.style.display = 'block';
+        submitBtn.disabled = false;
+      }
     });
+
+    loadActivities();
   </script>
 </body>
 </html>

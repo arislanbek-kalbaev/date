@@ -10,7 +10,10 @@ from __future__ import annotations
 import json
 import mimetypes
 import os
+import re
+import secrets
 import sqlite3
+import uuid
 from datetime import datetime, timezone
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -21,10 +24,13 @@ from urllib.parse import unquote, urlparse
 
 ROOT = Path(__file__).resolve().parent
 DATA_DIR = ROOT / "data"
+UPLOADS_DIR = DATA_DIR / "uploads"
 DB_PATH = DATA_DIR / "responses.sqlite3"
+ADMIN_TOKEN_PATH = DATA_DIR / "admin_token.txt"
 ADMIN_HTML_PATH = ROOT / "admin.html"
 INDEX_HTML_PATH = ROOT / "index.html"
 MAX_BODY_BYTES = 20 * 1024 * 1024
+ALLOWED_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
 
 
 def utc_now() -> str:
@@ -103,6 +109,30 @@ def ensure_database() -> None:
 
             CREATE INDEX IF NOT EXISTS idx_replays_session_time
             ON replays(session_id, received_at);
+
+            CREATE TABLE IF NOT EXISTS activities (
+                activity_id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                image_filename TEXT NOT NULL,
+                position INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS responses (
+                response_id TEXT PRIMARY KEY,
+                name TEXT,
+                message TEXT,
+                activities_json TEXT NOT NULL,
+                meeting_date TEXT,
+                meeting_time TEXT,
+                submitted_at TEXT NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_activities_position
+            ON activities(position ASC);
+
+            CREATE INDEX IF NOT EXISTS idx_responses_submitted_at
+            ON responses(submitted_at DESC);
             """
         )
 
@@ -149,6 +179,67 @@ def text_response(handler: BaseHTTPRequestHandler, status: int, text: str, conte
 
 def load_file(path: Path) -> str:
     return path.read_text(encoding="utf-8")
+
+
+def get_admin_token() -> str:
+    token = os.environ.get("ADMIN_TOKEN")
+    if token:
+        return token
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    if ADMIN_TOKEN_PATH.exists():
+        existing = ADMIN_TOKEN_PATH.read_text(encoding="utf-8").strip()
+        if existing:
+            return existing
+    generated = secrets.token_urlsafe(24)
+    ADMIN_TOKEN_PATH.write_text(generated, encoding="utf-8")
+    return generated
+
+
+def require_admin(handler: BaseHTTPRequestHandler) -> bool:
+    supplied = handler.headers.get("x-admin-token")
+    return bool(supplied) and supplied == get_admin_token()
+
+
+def parse_multipart(content_type: str, body: bytes) -> Dict[str, Any]:
+    boundary = None
+    for part in content_type.split(";"):
+        part = part.strip()
+        if part.startswith("boundary="):
+            boundary = part[len("boundary="):].strip('"')
+    if not boundary:
+        raise ValueError("missing_boundary")
+
+    boundary_bytes = ("--" + boundary).encode("utf-8")
+    fields: Dict[str, Any] = {}
+    for segment in body.split(boundary_bytes):
+        segment = segment.strip(b"\r\n")
+        if not segment or segment == b"--":
+            continue
+        header_blob, sep, content = segment.partition(b"\r\n\r\n")
+        if not sep:
+            continue
+        content = content[:-2] if content.endswith(b"\r\n") else content
+        headers_text = header_blob.decode("utf-8", errors="replace")
+        name_match = re.search(r'name="([^"]+)"', headers_text)
+        if not name_match:
+            continue
+        field_name = name_match.group(1)
+        filename_match = re.search(r'filename="([^"]*)"', headers_text)
+        if filename_match and filename_match.group(1):
+            type_match = re.search(r"content-type:\s*([^\r\n]+)", headers_text, re.IGNORECASE)
+            fields[field_name] = {
+                "filename": filename_match.group(1),
+                "content_type": type_match.group(1).strip() if type_match else "application/octet-stream",
+                "data": content,
+            }
+        else:
+            fields[field_name] = content.decode("utf-8", errors="replace")
+    return fields
+
+
+def next_activity_position(conn: sqlite3.Connection) -> int:
+    row = conn.execute("SELECT COALESCE(MAX(position), -1) + 1 AS next_position FROM activities").fetchone()
+    return row["next_position"]
 
 
 def is_choice_event(event: Dict[str, Any]) -> bool:
@@ -452,9 +543,30 @@ class RequestHandler(BaseHTTPRequestHandler):
     def do_OPTIONS(self) -> None:  # noqa: N802
         self.send_response(HTTPStatus.NO_CONTENT)
         self.send_header("access-control-allow-origin", "*")
-        self.send_header("access-control-allow-methods", "GET,POST,OPTIONS")
-        self.send_header("access-control-allow-headers", "content-type")
+        self.send_header("access-control-allow-methods", "GET,POST,DELETE,OPTIONS")
+        self.send_header("access-control-allow-headers", "content-type,x-admin-token")
         self.end_headers()
+
+    def do_DELETE(self) -> None:  # noqa: N802
+        parsed = urlparse(self.path)
+        path = unquote(parsed.path)
+        if path.startswith("/api/activities/"):
+            if not require_admin(self):
+                return json_response(self, HTTPStatus.UNAUTHORIZED, {"error": "unauthorized"})
+            activity_id = path.removeprefix("/api/activities/")
+            with open_database() as conn:
+                row = conn.execute(
+                    "SELECT image_filename FROM activities WHERE activity_id = ?", (activity_id,)
+                ).fetchone()
+                if not row:
+                    return json_response(self, HTTPStatus.NOT_FOUND, {"error": "not_found"})
+                conn.execute("DELETE FROM activities WHERE activity_id = ?", (activity_id,))
+                conn.commit()
+            image_path = UPLOADS_DIR / row["image_filename"]
+            if image_path.exists():
+                image_path.unlink()
+            return json_response(self, HTTPStatus.OK, {"ok": True})
+        return json_response(self, HTTPStatus.NOT_FOUND, {"error": "not_found"})
 
     def do_HEAD(self) -> None:  # noqa: N802
         parsed = urlparse(self.path)
@@ -507,29 +619,50 @@ class RequestHandler(BaseHTTPRequestHandler):
                     "events": fetch_session_events(conn, session_id),
                 }
             return json_response(self, HTTPStatus.OK, payload)
+        if path == "/api/activities":
+            with open_database() as conn:
+                rows = conn.execute(
+                    "SELECT activity_id, name, image_filename FROM activities ORDER BY position ASC, created_at ASC"
+                ).fetchall()
+            activities = [
+                {
+                    "id": row["activity_id"],
+                    "name": row["name"],
+                    "image_url": f"/uploads/{row['image_filename']}",
+                }
+                for row in rows
+            ]
+            return json_response(self, HTTPStatus.OK, {"activities": activities})
+
+        if path.startswith("/uploads/"):
+            if serve_static_file(self, f"data/uploads/{path.removeprefix('/uploads/')}"):
+                return
+            return text_response(self, HTTPStatus.NOT_FOUND, "Not found\n")
+
         if path == "/api/responses":
             with open_database() as conn:
                 rows = conn.execute(
                     """
-                    SELECT event_id, event_time, properties_json, received_at
-                    FROM events
-                    WHERE event_name = 'lovable.form_submitted'
-                    ORDER BY event_time DESC, received_at DESC
+                    SELECT response_id, name, message, activities_json, meeting_date, meeting_time, submitted_at
+                    FROM responses
+                    ORDER BY submitted_at DESC
                     """
                 ).fetchall()
             responses = []
             for row in rows:
-                properties = json.loads(row["properties_json"])
-                values = properties.get("values") if isinstance(properties, dict) else None
-                values = values if isinstance(values, dict) else {}
+                try:
+                    activities = json.loads(row["activities_json"])
+                except (TypeError, json.JSONDecodeError):
+                    activities = []
                 responses.append(
                     {
-                        "event_id": row["event_id"],
-                        "received_at": row["received_at"],
-                        "name": values.get("name"),
-                        "message": values.get("message"),
-                        "activities": values.get("activities"),
-                        "details": values.get("details"),
+                        "response_id": row["response_id"],
+                        "name": row["name"],
+                        "message": row["message"],
+                        "activities": activities,
+                        "date": row["meeting_date"],
+                        "time": row["meeting_time"],
+                        "submitted_at": row["submitted_at"],
                     }
                 )
             return json_response(self, HTTPStatus.OK, {"responses": responses})
@@ -560,6 +693,82 @@ class RequestHandler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:  # noqa: N802
         parsed = urlparse(self.path)
         path = unquote(parsed.path)
+        content_type = self.headers.get("content-type", "")
+
+        if path == "/api/activities":
+            if not require_admin(self):
+                return json_response(self, HTTPStatus.UNAUTHORIZED, {"error": "unauthorized"})
+            try:
+                body = read_body(self)
+            except ValueError as exc:
+                return json_response(self, HTTPStatus.REQUEST_ENTITY_TOO_LARGE, {"error": str(exc)})
+            if not content_type.startswith("multipart/form-data"):
+                return json_response(self, HTTPStatus.BAD_REQUEST, {"error": "expected_multipart"})
+            try:
+                fields = parse_multipart(content_type, body)
+            except ValueError as exc:
+                return json_response(self, HTTPStatus.BAD_REQUEST, {"error": str(exc)})
+
+            name = fields.get("name")
+            image = fields.get("image")
+            if not isinstance(name, str) or not name.strip():
+                return json_response(self, HTTPStatus.BAD_REQUEST, {"error": "name_required"})
+            if not isinstance(image, dict) or not image.get("data"):
+                return json_response(self, HTTPStatus.BAD_REQUEST, {"error": "image_required"})
+
+            UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+            activity_id = uuid.uuid4().hex
+            ext = Path(image["filename"]).suffix.lower()
+            if ext not in ALLOWED_IMAGE_EXTENSIONS:
+                ext = ".jpg"
+            image_filename = f"{activity_id}{ext}"
+            (UPLOADS_DIR / image_filename).write_bytes(image["data"])
+
+            with open_database() as conn:
+                conn.execute(
+                    "INSERT INTO activities (activity_id, name, image_filename, position, created_at) VALUES (?, ?, ?, ?, ?)",
+                    (activity_id, name.strip(), image_filename, next_activity_position(conn), utc_now()),
+                )
+                conn.commit()
+            return json_response(self, HTTPStatus.OK, {"ok": True, "activity_id": activity_id})
+
+        if path == "/api/submit":
+            try:
+                payload = parse_json_body(self)
+            except json.JSONDecodeError:
+                return json_response(self, HTTPStatus.BAD_REQUEST, {"error": "invalid_json"})
+            except ValueError as exc:
+                return json_response(self, HTTPStatus.REQUEST_ENTITY_TOO_LARGE, {"error": str(exc)})
+            if not isinstance(payload, dict):
+                return json_response(self, HTTPStatus.BAD_REQUEST, {"error": "expected_object"})
+
+            activities = payload.get("activities")
+            if not isinstance(activities, list) or not all(isinstance(item, str) for item in activities):
+                activities = []
+            name = (payload.get("name") or "").strip() or None
+            message = (payload.get("message") or "").strip() or None
+            response_id = uuid.uuid4().hex
+
+            with open_database() as conn:
+                conn.execute(
+                    """
+                    INSERT INTO responses (
+                        response_id, name, message, activities_json, meeting_date, meeting_time, submitted_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        response_id,
+                        name,
+                        message,
+                        json.dumps(activities, ensure_ascii=False),
+                        payload.get("date"),
+                        payload.get("time"),
+                        utc_now(),
+                    ),
+                )
+                conn.commit()
+            return json_response(self, HTTPStatus.OK, {"ok": True, "response_id": response_id})
+
         try:
             payload = parse_json_body(self)
         except json.JSONDecodeError:
@@ -591,6 +800,7 @@ def main() -> None:
     port = int(os.environ.get("PORT", "8787"))
     server = ThreadingHTTPServer(("0.0.0.0", port), RequestHandler)
     print(f"Serving on http://127.0.0.1:{port}")
+    print(f"Admin token: {get_admin_token()}")
     try:
         server.serve_forever()
     except KeyboardInterrupt:
