@@ -507,6 +507,33 @@ class RequestHandler(BaseHTTPRequestHandler):
                     "events": fetch_session_events(conn, session_id),
                 }
             return json_response(self, HTTPStatus.OK, payload)
+        if path == "/api/responses":
+            with open_database() as conn:
+                rows = conn.execute(
+                    """
+                    SELECT event_id, event_time, properties_json, received_at
+                    FROM events
+                    WHERE event_name = 'lovable.form_submitted'
+                    ORDER BY event_time DESC, received_at DESC
+                    """
+                ).fetchall()
+            responses = []
+            for row in rows:
+                properties = json.loads(row["properties_json"])
+                values = properties.get("values") if isinstance(properties, dict) else None
+                values = values if isinstance(values, dict) else {}
+                responses.append(
+                    {
+                        "event_id": row["event_id"],
+                        "received_at": row["received_at"],
+                        "name": values.get("name"),
+                        "message": values.get("message"),
+                        "activities": values.get("activities"),
+                        "details": values.get("details"),
+                    }
+                )
+            return json_response(self, HTTPStatus.OK, {"responses": responses})
+
         if path == "/api/export":
             with open_database() as conn:
                 rows = conn.execute("SELECT * FROM events ORDER BY event_time ASC, received_at ASC").fetchall()
