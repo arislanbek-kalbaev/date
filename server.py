@@ -12,8 +12,10 @@ import mimetypes
 import os
 import re
 import secrets
+import shutil
 import sqlite3
 import struct
+import subprocess
 import uuid
 from datetime import datetime, timezone
 from http import HTTPStatus
@@ -273,6 +275,20 @@ def read_image_dimensions(content_type: str, data: bytes) -> Optional[Tuple[int,
         return None
 
     return None
+
+
+JPEGOPTIM_PATH = shutil.which("jpegoptim")
+JPEGOPTIM_MAX_QUALITY = 82
+
+
+def compress_image_file(path: Path) -> None:
+    """Recompress a JPEG in place to cut its size with no visible quality loss."""
+    if not JPEGOPTIM_PATH or path.suffix.lower() not in (".jpg", ".jpeg"):
+        return
+    subprocess.run(
+        [JPEGOPTIM_PATH, f"--max={JPEGOPTIM_MAX_QUALITY}", "--strip-all", "--quiet", str(path)],
+        check=False,
+    )
 
 
 def next_activity_position(conn: sqlite3.Connection) -> int:
@@ -772,7 +788,9 @@ class RequestHandler(BaseHTTPRequestHandler):
             if ext not in ALLOWED_IMAGE_EXTENSIONS:
                 ext = ".jpg"
             image_filename = f"{activity_id}{ext}"
-            (UPLOADS_DIR / image_filename).write_bytes(image["data"])
+            image_path = UPLOADS_DIR / image_filename
+            image_path.write_bytes(image["data"])
+            compress_image_file(image_path)
 
             with open_database() as conn:
                 conn.execute(
