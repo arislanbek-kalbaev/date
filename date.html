@@ -27,7 +27,7 @@
       border-radius: 1.25rem;
       display: block;
     }
-    #submit-btn:disabled, button[data-activity-card]:disabled, #name-input:disabled,
+    #submit-btn:disabled, button[data-activity-card]:disabled,
     #message-input:disabled, #date-input:disabled, #time-input:disabled {
       opacity: .6;
       cursor: not-allowed;
@@ -93,10 +93,6 @@
             <input id="time-input" type="time" class="field-input" />
           </label>
           <label class="block">
-            <span class="text-sm text-muted-foreground">Твоё имя</span>
-            <input id="name-input" maxlength="100" class="field-input" value="Гульхаё" />
-          </label>
-          <label class="block">
             <span class="text-sm text-muted-foreground">Сообщение для меня (по желанию)</span>
             <textarea id="message-input" maxlength="1000" rows="3" placeholder="Напиши пару слов…" class="field-input" style="resize:none"></textarea>
           </label>
@@ -124,8 +120,8 @@
     const selectionHintEl = document.getElementById('selection-hint');
     const dateInput = document.getElementById('date-input');
     const timeInput = document.getElementById('time-input');
-    const nameInput = document.getElementById('name-input');
     const messageInput = document.getElementById('message-input');
+    const RESPONDENT_NAME = 'Гульхаё';
     const submitBtn = document.getElementById('submit-btn');
     const submitHint = document.getElementById('submit-hint');
     const submitError = document.getElementById('submit-error');
@@ -203,7 +199,7 @@
       submitError.style.display = 'none';
 
       const payload = {
-        name: nameInput.value.trim() || 'Гульхаё',
+        name: RESPONDENT_NAME,
         message: messageInput.value.trim(),
         activities: [selectedActivity.name],
         date: dateInput.value,
