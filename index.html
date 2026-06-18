@@ -8,6 +8,27 @@
   <link rel="stylesheet" href="styles-BQKTOYHW.css" />
   <style>
     html, body { margin: 0; height: 100%; overflow: hidden; }
+    .glow-blob {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(40px);
+      background: color-mix(in oklab, var(--coral) 50%, transparent);
+      animation: float-blob 9s ease-in-out infinite;
+      z-index: -5;
+    }
+    .glow-blob.b1 { width: 260px; height: 260px; top: 8%; left: 8%; }
+    .glow-blob.b2 { width: 220px; height: 220px; bottom: 10%; right: 10%; animation-delay: -3s; }
+    .glow-blob.b3 { width: 180px; height: 180px; top: 55%; left: 70%; animation-delay: -6s; }
+    @keyframes float-blob {
+      0%, 100% { transform: translate(0, 0) scale(1); }
+      50% { transform: translate(20px, -25px) scale(1.08); }
+    }
+    .hero-video {
+      max-width: 280px;
+      width: 100%;
+      border-radius: 1.5rem;
+      box-shadow: var(--shadow-soft);
+    }
     .ask-buttons { position: relative; }
     .ask-btn {
       appearance: none;
@@ -38,10 +59,16 @@
 <body>
   <div class="min-h-screen font-sans text-foreground">
     <header class="relative overflow-hidden min-h-screen flex items-center">
-      <div aria-hidden="true" class="absolute inset-0 -z-10" style="background:var(--gradient-romantic)"></div>
+      <div aria-hidden="true" class="absolute inset-0 -z-10" style="background:linear-gradient(135deg, #fff0f5, #ffe4e1)"></div>
       <img src="flowers-AbJLmTm8.jpg" alt="" width="1536" height="768" class="absolute inset-0 -z-10 h-full w-full object-cover opacity-40 mix-blend-multiply" />
+      <div aria-hidden="true" class="glow-blob b1"></div>
+      <div aria-hidden="true" class="glow-blob b2"></div>
+      <div aria-hidden="true" class="glow-blob b3"></div>
       <div class="mx-auto max-w-2xl px-6 py-20 text-center">
-        <img src="zootopia-dance.gif" alt="Nick and Judy dancing together" style="max-width: 280px; width: 100%; border-radius: 1.5rem; box-shadow: var(--shadow-soft);" />
+        <video class="hero-video" autoplay muted loop playsinline preload="auto" aria-label="Nick and Judy driving together">
+          <source src="zootopia-driving.webm" type="video/webm" />
+          <source src="zootopia-driving.mp4" type="video/mp4" />
+        </video>
         <h1 class="mt-6 text-4xl leading-[1.15] sm:text-5xl" style="font-family:var(--font-display)">Гульхаё, давай проведём время вместе?</h1>
         <div class="mt-10 flex items-center justify-center gap-4 ask-buttons">
           <button type="button" id="yes-btn" class="ask-btn">Да 💛</button>
