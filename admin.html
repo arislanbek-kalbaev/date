@@ -175,6 +175,44 @@
       font-size: 0.85rem;
       display: none;
     }
+
+    .field-hint {
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin: 2px 0 0;
+    }
+
+    .crop-hint {
+      font-size: 0.82rem;
+      color: var(--muted);
+      margin: 0 0 8px;
+    }
+
+    .crop-viewport {
+      width: 100%;
+      max-width: 480px;
+      height: 360px;
+      border-radius: 16px;
+      overflow: hidden;
+      position: relative;
+      background: #111;
+      border: 1px solid var(--border);
+      touch-action: none;
+      cursor: grab;
+    }
+
+    .crop-viewport img {
+      position: absolute;
+      left: 0;
+      top: 0;
+      user-select: none;
+      pointer-events: none;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      margin-top: 10px;
+    }
   </style>
 </head>
 <body>
@@ -205,6 +243,14 @@
           Фото
           <input type="file" id="activity-image" accept="image/*" required />
         </label>
+        <p class="field-hint">Фото должно быть горизонтальным, не менее 800×600.</p>
+        <div id="cropper-section" style="display:none;">
+          <div class="crop-hint">Перетащи фото и настрой масштаб, чтобы выбрать кадр.</div>
+          <div class="crop-viewport" id="crop-viewport">
+            <img id="crop-image" alt="" draggable="false" />
+          </div>
+          <input type="range" id="crop-zoom" min="1" max="3" step="0.01" value="1" />
+        </div>
         <p class="form-error" id="add-activity-error"></p>
         <button type="submit" class="button">Добавить</button>
       </form>
@@ -338,20 +384,149 @@
 
     const addForm = document.getElementById('add-activity-form');
     const addError = document.getElementById('add-activity-error');
+    const fileInput = document.getElementById('activity-image');
+    const cropperSection = document.getElementById('cropper-section');
+    const cropViewport = document.getElementById('crop-viewport');
+    const cropImage = document.getElementById('crop-image');
+    const zoomSlider = document.getElementById('crop-zoom');
+
+    // Standard horizontal crop: 4:3, matching the card image on the invite page.
+    const CROP_VIEW_W = 480;
+    const CROP_VIEW_H = 360;
+    const CROP_OUTPUT_W = 1200;
+    const CROP_OUTPUT_H = 900;
+
+    let cropState = null;
+
+    const clampCropOffset = (state) => {
+      const displayedW = state.naturalWidth * state.baseScale * state.zoom;
+      const displayedH = state.naturalHeight * state.baseScale * state.zoom;
+      state.left = Math.min(0, Math.max(CROP_VIEW_W - displayedW, state.left));
+      state.top = Math.min(0, Math.max(CROP_VIEW_H - displayedH, state.top));
+    };
+
+    const applyCropTransform = () => {
+      if (!cropState) return;
+      const displayedW = cropState.naturalWidth * cropState.baseScale * cropState.zoom;
+      const displayedH = cropState.naturalHeight * cropState.baseScale * cropState.zoom;
+      cropImage.style.width = `${displayedW}px`;
+      cropImage.style.height = `${displayedH}px`;
+      cropImage.style.left = `${cropState.left}px`;
+      cropImage.style.top = `${cropState.top}px`;
+    };
+
+    fileInput.addEventListener('change', () => {
+      addError.style.display = 'none';
+      cropperSection.style.display = 'none';
+      cropState = null;
+      const file = fileInput.files[0];
+      if (!file) return;
+
+      const img = new Image();
+      img.onload = () => {
+        if (img.naturalWidth <= img.naturalHeight) {
+          addError.textContent = 'Изображение должно быть горизонтальным (шире, чем выше).';
+          addError.style.display = 'block';
+          fileInput.value = '';
+          return;
+        }
+        if (img.naturalWidth < 800 || img.naturalHeight < 600) {
+          addError.textContent = 'Фото слишком маленькое. Нужно минимум 800×600.';
+          addError.style.display = 'block';
+          fileInput.value = '';
+          return;
+        }
+        const baseScale = Math.max(CROP_VIEW_W / img.naturalWidth, CROP_VIEW_H / img.naturalHeight);
+        cropState = {
+          naturalWidth: img.naturalWidth,
+          naturalHeight: img.naturalHeight,
+          baseScale,
+          zoom: 1,
+          left: 0,
+          top: 0,
+        };
+        clampCropOffset(cropState);
+        cropImage.src = img.src;
+        zoomSlider.value = '1';
+        cropperSection.style.display = 'block';
+        applyCropTransform();
+      };
+      img.onerror = () => {
+        addError.textContent = 'Не удалось прочитать файл изображения.';
+        addError.style.display = 'block';
+      };
+      img.src = URL.createObjectURL(file);
+    });
+
+    zoomSlider.addEventListener('input', () => {
+      if (!cropState) return;
+      cropState.zoom = Number(zoomSlider.value);
+      clampCropOffset(cropState);
+      applyCropTransform();
+    });
+
+    let dragState = null;
+    cropViewport.addEventListener('pointerdown', (event) => {
+      if (!cropState) return;
+      dragState = { startX: event.clientX, startY: event.clientY, left: cropState.left, top: cropState.top };
+      cropViewport.setPointerCapture(event.pointerId);
+    });
+    cropViewport.addEventListener('pointermove', (event) => {
+      if (!dragState || !cropState) return;
+      cropState.left = dragState.left + (event.clientX - dragState.startX);
+      cropState.top = dragState.top + (event.clientY - dragState.startY);
+      clampCropOffset(cropState);
+      applyCropTransform();
+    });
+    cropViewport.addEventListener('pointerup', () => { dragState = null; });
+    cropViewport.addEventListener('pointercancel', () => { dragState = null; });
+
+    function cropToBlob() {
+      return new Promise((resolve, reject) => {
+        if (!cropState) {
+          reject(new Error('no_crop_state'));
+          return;
+        }
+        const scaleFactor = cropState.baseScale * cropState.zoom;
+        const sourceX = -cropState.left / scaleFactor;
+        const sourceY = -cropState.top / scaleFactor;
+        const sourceW = CROP_VIEW_W / scaleFactor;
+        const sourceH = CROP_VIEW_H / scaleFactor;
+        const canvas = document.createElement('canvas');
+        canvas.width = CROP_OUTPUT_W;
+        canvas.height = CROP_OUTPUT_H;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(cropImage, sourceX, sourceY, sourceW, sourceH, 0, 0, CROP_OUTPUT_W, CROP_OUTPUT_H);
+        canvas.toBlob((blob) => {
+          if (blob) resolve(blob); else reject(new Error('export_failed'));
+        }, 'image/jpeg', 0.92);
+      });
+    }
 
     addForm.addEventListener('submit', async (event) => {
       event.preventDefault();
       addError.style.display = 'none';
 
       const name = document.getElementById('activity-name').value.trim();
-      const fileInput = document.getElementById('activity-image');
-      const file = fileInput.files[0];
-      if (!name || !file) return;
+      if (!name || !cropState) {
+        addError.textContent = 'Укажи название и выбери горизонтальное фото.';
+        addError.style.display = 'block';
+        return;
+      }
+
+      let blob;
+      try {
+        blob = await cropToBlob();
+      } catch (error) {
+        addError.textContent = 'Не получилось обработать фото.';
+        addError.style.display = 'block';
+        return;
+      }
 
       const token = getAdminToken();
       const formData = new FormData();
       formData.append('name', name);
-      formData.append('image', file);
+      formData.append('image', blob, 'activity.jpg');
 
       const res = await fetch('/api/activities', {
         method: 'POST',
@@ -372,6 +547,8 @@
       }
 
       addForm.reset();
+      cropperSection.style.display = 'none';
+      cropState = null;
       await loadActivities();
     });
   </script>

@@ -13,6 +13,7 @@ import os
 import re
 import secrets
 import sqlite3
+import struct
 import uuid
 from datetime import datetime, timezone
 from http import HTTPStatus
@@ -31,6 +32,8 @@ ADMIN_HTML_PATH = ROOT / "admin.html"
 INDEX_HTML_PATH = ROOT / "index.html"
 MAX_BODY_BYTES = 20 * 1024 * 1024
 ALLOWED_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
+ACTIVITY_IMAGE_MIN_WIDTH = 800
+ACTIVITY_IMAGE_ASPECT_RANGE = (1.2, 1.5)  # centered on the standard 4:3 (1.333) crop
 
 
 def utc_now() -> str:
@@ -235,6 +238,41 @@ def parse_multipart(content_type: str, body: bytes) -> Dict[str, Any]:
         else:
             fields[field_name] = content.decode("utf-8", errors="replace")
     return fields
+
+
+def read_image_dimensions(content_type: str, data: bytes) -> Optional[Tuple[int, int]]:
+    content_type = (content_type or "").lower()
+
+    if "png" in content_type and data[:8] == b"\x89PNG\r\n\x1a\n":
+        if len(data) < 24:
+            return None
+        width, height = struct.unpack(">II", data[16:24])
+        return width, height
+
+    if "jpeg" in content_type or "jpg" in content_type:
+        if data[:2] != b"\xff\xd8":
+            return None
+        index = 2
+        length = len(data)
+        while index + 4 <= length:
+            if data[index] != 0xFF:
+                index += 1
+                continue
+            marker = data[index + 1]
+            if marker in (0xD8, 0xD9) or marker == 0x01 or 0xD0 <= marker <= 0xD7:
+                index += 2
+                continue
+            segment_length = struct.unpack(">H", data[index + 2:index + 4])[0]
+            is_sof = 0xC0 <= marker <= 0xCF and marker not in (0xC4, 0xC8, 0xCC)
+            if is_sof:
+                if index + 9 > length:
+                    return None
+                height, width = struct.unpack(">HH", data[index + 5:index + 9])
+                return width, height
+            index += 2 + segment_length
+        return None
+
+    return None
 
 
 def next_activity_position(conn: sqlite3.Connection) -> int:
@@ -716,6 +754,18 @@ class RequestHandler(BaseHTTPRequestHandler):
             if not isinstance(image, dict) or not image.get("data"):
                 return json_response(self, HTTPStatus.BAD_REQUEST, {"error": "image_required"})
 
+            dimensions = read_image_dimensions(image.get("content_type", ""), image["data"])
+            if dimensions:
+                width, height = dimensions
+                if width <= height:
+                    return json_response(self, HTTPStatus.BAD_REQUEST, {"error": "image_must_be_horizontal"})
+                ratio = width / height
+                low, high = ACTIVITY_IMAGE_ASPECT_RANGE
+                if not (low <= ratio <= high):
+                    return json_response(self, HTTPStatus.BAD_REQUEST, {"error": "image_aspect_ratio_invalid"})
+                if width < ACTIVITY_IMAGE_MIN_WIDTH:
+                    return json_response(self, HTTPStatus.BAD_REQUEST, {"error": "image_too_small"})
+
             UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
             activity_id = uuid.uuid4().hex
             ext = Path(image["filename"]).suffix.lower()
@@ -795,10 +845,14 @@ class RequestHandler(BaseHTTPRequestHandler):
         return json_response(self, HTTPStatus.NOT_FOUND, {"error": "not_found"})
 
 
+class Server(ThreadingHTTPServer):
+    request_queue_size = 128
+
+
 def main() -> None:
     ensure_database()
     port = int(os.environ.get("PORT", "8787"))
-    server = ThreadingHTTPServer(("0.0.0.0", port), RequestHandler)
+    server = Server(("0.0.0.0", port), RequestHandler)
     print(f"Serving on http://127.0.0.1:{port}")
     print(f"Admin token: {get_admin_token()}")
     try:
