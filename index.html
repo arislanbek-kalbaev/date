@@ -132,9 +132,18 @@
 
     const noBtn = document.getElementById('no-btn');
     const yesBtn = document.getElementById('yes-btn');
+    const heroVideo = document.querySelector('.hero-video');
     const countdownOverlay = document.getElementById('countdown-overlay');
     const countdownNumber = document.getElementById('countdown-number');
     const margin = 16;
+    const obstaclePad = 14;
+
+    const rectsOverlap = (a, b) => !(
+      a.right + obstaclePad < b.left ||
+      a.left - obstaclePad > b.right ||
+      a.bottom + obstaclePad < b.top ||
+      a.top - obstaclePad > b.bottom
+    );
 
     function flee() {
       const rect = noBtn.getBoundingClientRect();
@@ -142,14 +151,19 @@
       const maxY = Math.max(margin, window.innerHeight - rect.height - margin);
       const hopMin = 90;
       const hopMax = 170;
+      const obstacles = [yesBtn, heroVideo].filter(Boolean).map((el) => el.getBoundingClientRect());
       let x = rect.left;
       let y = rect.top;
-      for (let attempt = 0; attempt < 8; attempt += 1) {
+      for (let attempt = 0; attempt < 24; attempt += 1) {
         const angle = Math.random() * Math.PI * 2;
         const distance = hopMin + Math.random() * (hopMax - hopMin);
         const candidateX = Math.min(maxX, Math.max(margin, rect.left + Math.cos(angle) * distance));
         const candidateY = Math.min(maxY, Math.max(margin, rect.top + Math.sin(angle) * distance));
-        if (Math.hypot(candidateX - rect.left, candidateY - rect.top) > hopMin * 0.5) {
+        const movedEnough = Math.hypot(candidateX - rect.left, candidateY - rect.top) > hopMin * 0.5;
+        if (!movedEnough) continue;
+        const candidateRect = { left: candidateX, top: candidateY, right: candidateX + rect.width, bottom: candidateY + rect.height };
+        const blocked = obstacles.some((obstacle) => rectsOverlap(candidateRect, obstacle));
+        if (!blocked) {
           x = candidateX;
           y = candidateY;
           break;
