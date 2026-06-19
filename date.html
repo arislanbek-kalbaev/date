@@ -9,6 +9,17 @@
   <link rel="stylesheet" href="styles-BQKTOYHW.css" />
   <style>
     html, body { margin: 0; }
+    body {
+      opacity: 0;
+      transform: translateY(10px);
+      transition: opacity .5s ease, transform .5s ease;
+    }
+    body.page-ready { opacity: 1; transform: translateY(0); }
+    body.page-leaving {
+      opacity: 0;
+      transform: translateY(-10px);
+      transition: opacity .35s ease, transform .35s ease;
+    }
     button[data-activity-card] { appearance: none; font: inherit; cursor: pointer; }
     button[data-activity-card][aria-pressed="true"] {
       border-color: var(--coral) !important;
@@ -34,6 +45,83 @@
     .dt-row { display: flex; gap: .5rem; }
     .dt-row select { min-width: 0; flex: 1; }
     .dt-row select:disabled { opacity: .6; cursor: not-allowed; }
+    .fancy-select-native {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      opacity: 0;
+      pointer-events: none;
+    }
+    .fancy-select { position: relative; flex: 1; min-width: 0; }
+    .fancy-select-btn {
+      appearance: none;
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: .35rem;
+      background: var(--card);
+      border: 1px solid var(--input);
+      border-radius: .75rem;
+      padding: .75rem 1rem;
+      font: inherit;
+      font-size: .95rem;
+      color: var(--foreground);
+      cursor: pointer;
+      transition: border-color .15s ease, box-shadow .15s ease;
+    }
+    .fancy-select-btn.is-placeholder { color: var(--muted-foreground); }
+    .fancy-select-btn svg {
+      flex-shrink: 0;
+      width: 16px;
+      height: 16px;
+      opacity: .55;
+      transition: transform .2s ease;
+    }
+    .fancy-select.is-open .fancy-select-btn {
+      border-color: var(--coral);
+      box-shadow: 0 0 0 3px color-mix(in oklab, var(--coral) 25%, transparent);
+    }
+    .fancy-select.is-open .fancy-select-btn svg { transform: rotate(180deg); }
+    .fancy-select-panel {
+      position: absolute;
+      top: calc(100% + 8px);
+      left: 0;
+      right: 0;
+      max-height: 240px;
+      overflow-y: auto;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 1rem;
+      box-shadow: var(--shadow-soft);
+      padding: .4rem;
+      z-index: 30;
+      display: none;
+      -webkit-overflow-scrolling: touch;
+    }
+    .fancy-select.is-open .fancy-select-panel {
+      display: block;
+      animation: fancy-select-pop .16s ease;
+    }
+    @keyframes fancy-select-pop {
+      from { opacity: 0; transform: translateY(-6px) scale(.97); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    .fancy-select-option {
+      display: block;
+      width: 100%;
+      text-align: left;
+      background: none;
+      border: none;
+      font: inherit;
+      font-size: .95rem;
+      padding: .6rem .75rem;
+      border-radius: .65rem;
+      cursor: pointer;
+      color: var(--foreground);
+    }
+    .fancy-select-option:hover { background: color-mix(in oklab, var(--coral) 10%, transparent); }
+    .fancy-select-option.is-selected { background: var(--coral); color: #fff; }
     .field-input {
       margin-top: .25rem;
       width: 100%;
@@ -122,6 +210,80 @@
       }
     };
 
+    requestAnimationFrame(() => document.body.classList.add('page-ready'));
+
+    const goTo = (url) => {
+      document.body.classList.remove('page-ready');
+      document.body.classList.add('page-leaving');
+      setTimeout(() => { window.location.href = url; }, 320);
+    };
+
+    const enhanceSelect = (select, placeholder) => {
+      select.classList.add('fancy-select-native');
+      select.tabIndex = -1;
+
+      const wrapper = document.createElement('div');
+      wrapper.className = 'fancy-select';
+
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'fancy-select-btn';
+      btn.setAttribute('aria-haspopup', 'listbox');
+      const label = document.createElement('span');
+      btn.appendChild(label);
+      btn.insertAdjacentHTML('beforeend', '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>');
+
+      const panel = document.createElement('div');
+      panel.className = 'fancy-select-panel';
+      panel.setAttribute('role', 'listbox');
+
+      wrapper.appendChild(btn);
+      wrapper.appendChild(panel);
+      select.insertAdjacentElement('afterend', wrapper);
+
+      const closePanel = () => wrapper.classList.remove('is-open');
+
+      const render = () => {
+        panel.innerHTML = '';
+        Array.from(select.options).forEach((opt) => {
+          const item = document.createElement('button');
+          item.type = 'button';
+          item.className = 'fancy-select-option' + (opt.value === select.value ? ' is-selected' : '');
+          item.textContent = opt.textContent;
+          item.addEventListener('click', () => {
+            select.value = opt.value;
+            select.dispatchEvent(new Event('change', { bubbles: true }));
+            updateLabel();
+            closePanel();
+          });
+          panel.appendChild(item);
+        });
+      };
+
+      const updateLabel = () => {
+        const opt = select.options[select.selectedIndex];
+        const hasValue = opt && opt.value !== '';
+        label.textContent = hasValue ? opt.textContent : placeholder;
+        btn.classList.toggle('is-placeholder', !hasValue);
+      };
+
+      btn.addEventListener('click', () => {
+        const isOpen = wrapper.classList.contains('is-open');
+        document.querySelectorAll('.fancy-select.is-open').forEach((node) => node.classList.remove('is-open'));
+        if (!isOpen) {
+          render();
+          wrapper.classList.add('is-open');
+        }
+      });
+
+      document.addEventListener('click', (event) => {
+        if (!wrapper.contains(event.target)) closePanel();
+      });
+
+      select._fancyRefresh = () => { render(); updateLabel(); };
+      updateLabel();
+    };
+
     const cardsEl = document.getElementById('cards');
     const cardsStateEl = document.getElementById('cards-state');
     const selectionHintEl = document.getElementById('selection-hint');
@@ -162,6 +324,7 @@
         opt.textContent = labels ? labels[i] : pad2(value);
         select.appendChild(opt);
       }
+      if (select._fancyRefresh) select._fancyRefresh();
     };
 
     const RU_MONTHS = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
@@ -174,6 +337,12 @@
     fillSelect(hourInput, 24, { start: 0 });
     fillSelect(minuteInput, 60, { start: 0 });
 
+    enhanceSelect(dayInput, 'День');
+    enhanceSelect(monthInput, 'Месяц');
+    enhanceSelect(yearInput, 'Год');
+    enhanceSelect(hourInput, 'Час');
+    enhanceSelect(minuteInput, 'Мин');
+
     const daysInMonth = (year, month) => new Date(year, month, 0).getDate();
 
     const refreshDayOptions = () => {
@@ -182,7 +351,10 @@
       const maxDays = month ? daysInMonth(year, month) : 31;
       const current = dayInput.value;
       fillSelect(dayInput, maxDays, { start: 1 });
-      if (current && Number(current) <= maxDays) dayInput.value = current;
+      if (current && Number(current) <= maxDays) {
+        dayInput.value = current;
+        if (dayInput._fancyRefresh) dayInput._fancyRefresh();
+      }
     };
 
     const getSelectedDate = () => {
@@ -292,7 +464,7 @@
         track('lovable.form_submitted', { values: payload });
 
         const params = new URLSearchParams({ name: payload.name });
-        window.location.href = `thanks.html?${params.toString()}`;
+        goTo(`thanks.html?${params.toString()}`);
       } catch (error) {
         submitError.textContent = 'Не получилось отправить. Попробуй ещё раз.';
         submitError.style.display = 'block';

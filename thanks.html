@@ -8,6 +8,12 @@
   <link rel="stylesheet" href="styles-BQKTOYHW.css" />
   <style>
     html, body { margin: 0; }
+    body {
+      opacity: 0;
+      transform: translateY(10px);
+      transition: opacity .5s ease, transform .5s ease;
+    }
+    body.page-ready { opacity: 1; transform: translateY(0); }
     .hero-video {
       max-width: 240px;
       width: 100%;
@@ -42,6 +48,8 @@
   </div>
 
   <script>
+    requestAnimationFrame(() => document.body.classList.add('page-ready'));
+
     const params = new URLSearchParams(window.location.search);
     const name = params.get('name');
     if (name) {

@@ -8,6 +8,51 @@
   <link rel="stylesheet" href="styles-BQKTOYHW.css" />
   <style>
     html, body { margin: 0; height: 100%; overflow: hidden; }
+    body {
+      opacity: 0;
+      transform: translateY(10px);
+      transition: opacity .5s ease, transform .5s ease;
+    }
+    body.page-ready { opacity: 1; transform: translateY(0); }
+    body.page-leaving {
+      opacity: 0;
+      transform: translateY(-10px);
+      transition: opacity .35s ease, transform .35s ease;
+    }
+    .countdown-overlay {
+      position: fixed;
+      inset: 0;
+      background: #FFF4F2;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: .75rem;
+      z-index: 50;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .25s ease;
+    }
+    .countdown-overlay.is-active { opacity: 1; pointer-events: all; }
+    .countdown-number {
+      font-family: var(--font-display);
+      font-size: 9rem;
+      line-height: 1;
+      font-weight: 600;
+      color: var(--coral);
+      text-shadow: 0 8px 30px color-mix(in oklab, var(--coral) 35%, transparent);
+    }
+    .countdown-number.pop { animation: countdown-pop .7s cubic-bezier(.34, 1.56, .64, 1); }
+    @keyframes countdown-pop {
+      0% { transform: scale(.4); opacity: 0; }
+      35% { transform: scale(1.15); opacity: 1; }
+      60% { transform: scale(1); opacity: 1; }
+      100% { transform: scale(.9); opacity: 1; }
+    }
+    .countdown-caption {
+      font-size: 1.05rem;
+      color: var(--muted-foreground);
+    }
     .glow-blob {
       position: absolute;
       border-radius: 50%;
@@ -77,9 +122,18 @@
     </header>
   </div>
 
+  <div class="countdown-overlay" id="countdown-overlay" aria-hidden="true">
+    <div class="countdown-number" id="countdown-number">3</div>
+    <p class="countdown-caption">Уже бегу к тебе…</p>
+  </div>
+
   <script>
+    requestAnimationFrame(() => document.body.classList.add('page-ready'));
+
     const noBtn = document.getElementById('no-btn');
     const yesBtn = document.getElementById('yes-btn');
+    const countdownOverlay = document.getElementById('countdown-overlay');
+    const countdownNumber = document.getElementById('countdown-number');
     const margin = 16;
 
     function flee() {
@@ -102,8 +156,29 @@
       if (noBtn.classList.contains('is-fleeing')) flee();
     });
 
+    const playPop = () => {
+      countdownNumber.classList.remove('pop');
+      void countdownNumber.offsetWidth;
+      countdownNumber.classList.add('pop');
+    };
+
     yesBtn.addEventListener('click', () => {
-      window.location.href = 'date.html';
+      countdownOverlay.classList.add('is-active');
+      let count = 3;
+      countdownNumber.textContent = String(count);
+      playPop();
+      const tick = () => {
+        count -= 1;
+        if (count > 0) {
+          countdownNumber.textContent = String(count);
+          playPop();
+          setTimeout(tick, 700);
+        } else {
+          document.body.classList.add('page-leaving');
+          setTimeout(() => { window.location.href = 'date.html'; }, 280);
+        }
+      };
+      setTimeout(tick, 700);
     });
   </script>
 </body>
