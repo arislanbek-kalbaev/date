@@ -27,11 +27,13 @@
       border-radius: 1.25rem;
       display: block;
     }
-    #submit-btn:disabled, button[data-activity-card]:disabled,
-    #message-input:disabled, #date-input:disabled, #time-input:disabled {
+    #submit-btn:disabled, button[data-activity-card]:disabled, #message-input:disabled {
       opacity: .6;
       cursor: not-allowed;
     }
+    .dt-row { display: flex; gap: .5rem; }
+    .dt-row select { min-width: 0; flex: 1; }
+    .dt-row select:disabled { opacity: .6; cursor: not-allowed; }
     .field-input {
       margin-top: .25rem;
       width: 100%;
@@ -82,14 +84,21 @@
         <h3 class="text-3xl" style="font-family:var(--font-display)">Дата, время и твой ответ</h3>
         <p class="mt-2 text-sm text-muted-foreground" id="selection-hint">Сначала выбери один вариант выше.</p>
         <div class="mt-6 space-y-4">
-          <label class="block">
-            <span class="text-sm text-muted-foreground">Дата</span>
-            <input id="date-input" type="date" class="field-input" />
-          </label>
-          <label class="block">
-            <span class="text-sm text-muted-foreground">Время</span>
-            <input id="time-input" type="time" class="field-input" />
-          </label>
+          <div class="block">
+            <span class="text-sm text-muted-foreground">Дата (дд.мм.гггг)</span>
+            <div class="dt-row" style="margin-top:.25rem">
+              <select id="day-input" class="field-input" style="margin-top:0" aria-label="День"></select>
+              <select id="month-input" class="field-input" style="margin-top:0" aria-label="Месяц"></select>
+              <select id="year-input" class="field-input" style="margin-top:0" aria-label="Год"></select>
+            </div>
+          </div>
+          <div class="block">
+            <span class="text-sm text-muted-foreground">Время (24-часовой формат)</span>
+            <div class="dt-row" style="margin-top:.25rem">
+              <select id="hour-input" class="field-input" style="margin-top:0" aria-label="Часы"></select>
+              <select id="minute-input" class="field-input" style="margin-top:0" aria-label="Минуты"></select>
+            </div>
+          </div>
           <label class="block">
             <span class="text-sm text-muted-foreground">Сообщение для меня (по желанию)</span>
             <textarea id="message-input" maxlength="1000" rows="3" placeholder="Напиши пару слов…" class="field-input" style="resize:none"></textarea>
@@ -116,8 +125,11 @@
     const cardsEl = document.getElementById('cards');
     const cardsStateEl = document.getElementById('cards-state');
     const selectionHintEl = document.getElementById('selection-hint');
-    const dateInput = document.getElementById('date-input');
-    const timeInput = document.getElementById('time-input');
+    const dayInput = document.getElementById('day-input');
+    const monthInput = document.getElementById('month-input');
+    const yearInput = document.getElementById('year-input');
+    const hourInput = document.getElementById('hour-input');
+    const minuteInput = document.getElementById('minute-input');
     const messageInput = document.getElementById('message-input');
     const RESPONDENT_NAME = 'Гульхаё';
     const submitBtn = document.getElementById('submit-btn');
@@ -133,12 +145,73 @@
       .replaceAll('"', '&quot;')
       .replaceAll("'", '&#39;');
 
+    const pad2 = (value) => String(value).padStart(2, '0');
+
+    const fillSelect = (select, count, { start = 0, placeholder = true } = {}) => {
+      select.innerHTML = '';
+      if (placeholder) {
+        const opt = document.createElement('option');
+        opt.value = '';
+        opt.textContent = '—';
+        select.appendChild(opt);
+      }
+      for (let i = 0; i < count; i += 1) {
+        const value = start + i;
+        const opt = document.createElement('option');
+        opt.value = String(value);
+        opt.textContent = pad2(value);
+        select.appendChild(opt);
+      }
+    };
+
+    const CURRENT_YEAR = 2026;
+    fillSelect(dayInput, 31, { start: 1 });
+    fillSelect(monthInput, 12, { start: 1 });
+    fillSelect(yearInput, 6, { start: CURRENT_YEAR, placeholder: false });
+    yearInput.value = String(CURRENT_YEAR);
+    fillSelect(hourInput, 24, { start: 0 });
+    fillSelect(minuteInput, 60, { start: 0 });
+
+    const daysInMonth = (year, month) => new Date(year, month, 0).getDate();
+
+    const refreshDayOptions = () => {
+      const month = monthInput.value ? Number(monthInput.value) : null;
+      const year = yearInput.value ? Number(yearInput.value) : CURRENT_YEAR;
+      const maxDays = month ? daysInMonth(year, month) : 31;
+      const current = dayInput.value;
+      fillSelect(dayInput, maxDays, { start: 1 });
+      if (current && Number(current) <= maxDays) dayInput.value = current;
+    };
+
+    const getSelectedDate = () => {
+      const day = dayInput.value;
+      const month = monthInput.value;
+      const year = yearInput.value;
+      const hour = hourInput.value;
+      const minute = minuteInput.value;
+      if (!day || !month || !year || hour === '' || minute === '') return null;
+      const dt = new Date(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute), 0, 0);
+      return dt;
+    };
+
+    const isFutureSelection = () => {
+      const dt = getSelectedDate();
+      if (!dt) return false;
+      return dt.getTime() > Date.now();
+    };
+
     const updateSubmitState = () => {
-      const ready = Boolean(selectedActivity) && Boolean(dateInput.value) && Boolean(timeInput.value);
+      const dt = getSelectedDate();
+      const future = dt ? isFutureSelection() : false;
+      const ready = Boolean(selectedActivity) && Boolean(dt) && future;
       submitBtn.disabled = !ready;
-      selectionHintEl.textContent = selectedActivity
-        ? `Выбрано: ${selectedActivity.name}`
-        : 'Сначала выбери один вариант выше.';
+      if (!selectedActivity) {
+        selectionHintEl.textContent = 'Сначала выбери один вариант выше.';
+      } else if (dt && !future) {
+        selectionHintEl.textContent = 'Выбери дату и время в будущем.';
+      } else {
+        selectionHintEl.textContent = `Выбрано: ${selectedActivity.name}`;
+      }
     };
 
     const selectActivity = (activity, cardEl) => {
@@ -187,11 +260,13 @@
       }
     }
 
-    dateInput.addEventListener('change', updateSubmitState);
-    timeInput.addEventListener('change', updateSubmitState);
+    monthInput.addEventListener('change', () => { refreshDayOptions(); updateSubmitState(); });
+    yearInput.addEventListener('change', () => { refreshDayOptions(); updateSubmitState(); });
+    [dayInput, hourInput, minuteInput].forEach((el) => el.addEventListener('change', updateSubmitState));
 
     submitBtn.addEventListener('click', async () => {
-      if (!selectedActivity || !dateInput.value || !timeInput.value) return;
+      const dt = getSelectedDate();
+      if (!selectedActivity || !dt || !isFutureSelection()) return;
 
       submitBtn.disabled = true;
       submitError.style.display = 'none';
@@ -200,8 +275,8 @@
         name: RESPONDENT_NAME,
         message: messageInput.value.trim(),
         activities: [selectedActivity.name],
-        date: dateInput.value,
-        time: timeInput.value,
+        date: `${yearInput.value}-${pad2(monthInput.value)}-${pad2(dayInput.value)}`,
+        time: `${pad2(hourInput.value)}:${pad2(minuteInput.value)}`,
       };
 
       try {
