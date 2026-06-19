@@ -140,8 +140,21 @@
       const rect = noBtn.getBoundingClientRect();
       const maxX = Math.max(margin, window.innerWidth - rect.width - margin);
       const maxY = Math.max(margin, window.innerHeight - rect.height - margin);
-      const x = margin + Math.random() * (maxX - margin);
-      const y = margin + Math.random() * (maxY - margin);
+      const hopMin = 90;
+      const hopMax = 170;
+      let x = rect.left;
+      let y = rect.top;
+      for (let attempt = 0; attempt < 8; attempt += 1) {
+        const angle = Math.random() * Math.PI * 2;
+        const distance = hopMin + Math.random() * (hopMax - hopMin);
+        const candidateX = Math.min(maxX, Math.max(margin, rect.left + Math.cos(angle) * distance));
+        const candidateY = Math.min(maxY, Math.max(margin, rect.top + Math.sin(angle) * distance));
+        if (Math.hypot(candidateX - rect.left, candidateY - rect.top) > hopMin * 0.5) {
+          x = candidateX;
+          y = candidateY;
+          break;
+        }
+      }
       noBtn.classList.add('is-fleeing');
       noBtn.style.left = `${x}px`;
       noBtn.style.top = `${y}px`;
