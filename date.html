@@ -85,7 +85,7 @@
         <p class="mt-2 text-sm text-muted-foreground" id="selection-hint">Сначала выбери один вариант выше.</p>
         <div class="mt-6 space-y-4">
           <div class="block">
-            <span class="text-sm text-muted-foreground">Дата (дд.мм.гггг)</span>
+            <span class="text-sm text-muted-foreground">Дата</span>
             <div class="dt-row" style="margin-top:.25rem">
               <select id="day-input" class="field-input" style="margin-top:0" aria-label="День"></select>
               <select id="month-input" class="field-input" style="margin-top:0" aria-label="Месяц"></select>
@@ -147,7 +147,7 @@
 
     const pad2 = (value) => String(value).padStart(2, '0');
 
-    const fillSelect = (select, count, { start = 0, placeholder = true } = {}) => {
+    const fillSelect = (select, count, { start = 0, placeholder = true, labels = null } = {}) => {
       select.innerHTML = '';
       if (placeholder) {
         const opt = document.createElement('option');
@@ -159,14 +159,16 @@
         const value = start + i;
         const opt = document.createElement('option');
         opt.value = String(value);
-        opt.textContent = pad2(value);
+        opt.textContent = labels ? labels[i] : pad2(value);
         select.appendChild(opt);
       }
     };
 
+    const RU_MONTHS = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
+
     const CURRENT_YEAR = 2026;
     fillSelect(dayInput, 31, { start: 1 });
-    fillSelect(monthInput, 12, { start: 1 });
+    fillSelect(monthInput, 12, { start: 1, labels: RU_MONTHS });
     fillSelect(yearInput, 6, { start: CURRENT_YEAR, placeholder: false });
     yearInput.value = String(CURRENT_YEAR);
     fillSelect(hourInput, 24, { start: 0 });
